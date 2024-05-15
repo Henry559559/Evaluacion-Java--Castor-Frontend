@@ -1,5 +1,5 @@
 import axios from 'axios';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 export default function EditarSolicitud() {
@@ -12,44 +12,11 @@ export default function EditarSolicitud() {
         estadoSolicitud: "",
         fechaSolicitud: ""
     });
-    const {estadoSolicitud, fechaSolicitud} = solicitud;
+    const { estadoSolicitud, fechaSolicitud } = solicitud;
     const [servicioSolicitud, setServicioSolicitud] = useState([]);
     const [persona, setPersona] = useState([]);
     const [selectedServicioSolicitud, setSelectedServicioSolicitud] = useState('');
     const [selectedPersona, setSelectedPersona] = useState('');
-
-    useEffect(() => {
-        cargarServicioSolicitud();
-        cargarPersona();
-    }, []);
-
-    const cargarServicioSolicitud = async () => {
-        const resultado = await axios.get(urlServicioSolicitante);
-        setServicioSolicitud(resultado.data);
-        cargarSolicitud(resultado.data, servicioSolicitud);
-    }
-
-    const cargarPersona = async () => {
-        const resultado = await axios.get(urlPersona);
-        setPersona(resultado.data);
-        // Pasar los datos cargados a la función cargarSolicitud
-        cargarSolicitud(resultado.data, servicioSolicitud);
-    }
-
-    const cargarSolicitud = async (personaData, servicioSolicitudData) => {
-        try {
-            const resultado = await axios.get(`${urlBase}/${id}`);
-            const solicitudData = resultado.data;
-            solicitudData.fechaSolicitud = formatearFecha(solicitudData.fechaSolicitud);
-            setSolicitud(solicitudData);
-            const solicitudPersona = personaData.find(persona => persona.idPersona === solicitudData.persona.idPersona);
-            const svcSolicitud = servicioSolicitudData.find(svcSolicitud => svcSolicitud.idServicioSolicitud === solicitudData.servicioSolicitud.idServicioSolicitud);
-            setSelectedPersona(solicitudPersona ? solicitudPersona.idPersona : '');
-            setSelectedServicioSolicitud(svcSolicitud ? svcSolicitud.idServicioSolicitud : '');
-        } catch (error) {
-            console.error('Error al cargar datos del empleado:', error);
-        }
-    }
 
     const formatearFecha = (fecha) => {
         const date = new Date(fecha);
@@ -58,6 +25,34 @@ export default function EditarSolicitud() {
         const año = date.getFullYear();
         return `${año}-${mes}-${dia}`;
     };
+
+    const cargarDatosIniciales = useCallback(async () => {
+        try {
+            const [servicioSolicitudRes, personaRes] = await Promise.all([
+                axios.get(urlServicioSolicitante),
+                axios.get(urlPersona),
+            ]);
+
+            setServicioSolicitud(servicioSolicitudRes.data);
+            setPersona(personaRes.data);
+
+            const resultado = await axios.get(`${urlBase}/${id}`);
+            const solicitudData = resultado.data;
+            solicitudData.fechaSolicitud = formatearFecha(solicitudData.fechaSolicitud);
+            setSolicitud(solicitudData);
+
+            const solicitudPersona = personaRes.data.find(persona => persona.idPersona === solicitudData.persona.idPersona);
+            const svcSolicitud = servicioSolicitudRes.data.find(svcSolicitud => svcSolicitud.idServicioSolicitud === solicitudData.servicioSolicitud.idServicioSolicitud);
+            setSelectedPersona(solicitudPersona ? solicitudPersona.idPersona : '');
+            setSelectedServicioSolicitud(svcSolicitud ? svcSolicitud.idServicioSolicitud : '');
+        } catch (error) {
+            console.error('Error al cargar datos:', error);
+        }
+    }, [id, urlBase, urlPersona, urlServicioSolicitante]);
+
+    useEffect(() => {
+        cargarDatosIniciales();
+    }, [cargarDatosIniciales]);
 
     const onInputChange = (e) => {
         setSolicitud({ ...solicitud, [e.target.name]: e.target.value });
@@ -83,7 +78,7 @@ export default function EditarSolicitud() {
         formData.append('idServicioSolicitud', integerNumber);
         formData.append('idPersona', integerNumber1);
         try {
-            const response = await axios.put(urlBase, formData, {
+            await axios.put(`${urlBase}/${id}`, formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data'
                 }
@@ -101,10 +96,10 @@ export default function EditarSolicitud() {
                 <h3>Editar Solicitud</h3>
             </div>
 
-            <form onSubmit={(e) => onSubmit(e)}>
+            <form onSubmit={onSubmit}>
                 <div className="mb-3">
                     <label htmlFor="estadoSolicitud" className="form-label">Estado Solicitud</label>
-                    <select value={estadoSolicitud} onChange={(e) => onInputChange(e)} className="form-select mb-3" id="estadoSolicitud" name="estadoSolicitud" required>
+                    <select value={estadoSolicitud} onChange={onInputChange} className="form-select mb-3" id="estadoSolicitud" name="estadoSolicitud" required>
                         <option value="">Seleccione un estado</option>
                         <option value="pendiente">Pendiente</option>
                         <option value="aprobado">Aprobado</option>
@@ -113,11 +108,11 @@ export default function EditarSolicitud() {
                 </div>
                 <div className="mb-3">
                     <label htmlFor="fechaSolicitud" className="form-label">Fecha De Ingreso</label>
-                    <input type="date" step="any" value={fechaSolicitud} onChange={(e) => onInputChange(e)} className="form-control" id="fechaSolicitud" name='fechaSolicitud' required={true} />
+                    <input type="date" step="any" value={fechaSolicitud} onChange={onInputChange} className="form-control" id="fechaSolicitud" name='fechaSolicitud' required={true} />
                 </div>
                 <div className="mb-3">
                     <label htmlFor="servicioSolicitud" className="form-label">Servicio Solicitud</label>
-                    <select className="form-select  mb-3" value={selectedServicioSolicitud} onChange={handleServicioSolicitudChange} required>
+                    <select className="form-select mb-3" value={selectedServicioSolicitud} onChange={handleServicioSolicitudChange} required>
                         <option value="">Seleccione un cargo</option>
                         {servicioSolicitud.map((elemento, index) => (
                             <option key={index} value={elemento.idServicioSolicitud}>
@@ -143,5 +138,5 @@ export default function EditarSolicitud() {
                 </div>
             </form>
         </div>
-    )
+    );
 }
